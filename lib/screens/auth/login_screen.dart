@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
 import 'register_screen.dart';
@@ -17,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
 
   @override
@@ -30,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
     final success = await authProvider.login(
       _loginController.text.trim(),
       _passwordController.text,
@@ -41,6 +44,29 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const MainScreen()),
       );
     }
+  }
+
+  Widget _buildLogo() {
+    return Image.asset(
+      'assets/images/logo_ingoncare.png',
+      width: 160,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: 90,
+          height: 90,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: const Icon(
+            Icons.pets,
+            size: 44,
+            color: Colors.white,
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -56,29 +82,12 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primaryDark, AppColors.primary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Icon(
-                      Icons.pets,
-                      size: 50,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  _buildLogo(),
+                  const SizedBox(height: 18),
 
-                  // Title
                   const Text(
                     'Selamat datang kembali',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
@@ -88,6 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Masuk ke akun IngonCare Anda',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
                       color: AppColors.textGray,
@@ -95,11 +105,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Tab Masuk / Daftar
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primaryLighter, width: 1.5),
+                      border: Border.all(
+                        color: AppColors.primaryLighter,
+                        width: 1.5,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -127,7 +139,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             onTap: () {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const RegisterScreen(),
+                                ),
                               );
                             },
                             child: Container(
@@ -150,7 +164,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // Email field
                   TextFormField(
                     controller: _loginController,
                     keyboardType: TextInputType.emailAddress,
@@ -163,7 +176,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         letterSpacing: 1,
                       ),
                       hintText: 'email@gmail.com',
-                      prefixIcon: Icon(Icons.mail_outline, color: AppColors.primaryLight),
+                      prefixIcon: Icon(
+                        Icons.mail_outline,
+                        color: AppColors.primaryLight,
+                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -174,7 +190,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
@@ -187,14 +202,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         letterSpacing: 1,
                       ),
                       hintText: '••••••••',
-                      prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primaryLight),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                        color: AppColors.primaryLight,
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: AppColors.primaryLight,
                         ),
                         onPressed: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
                         },
                       ),
                     ),
@@ -206,7 +228,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
 
-                  // Error message
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       if (auth.error != null) {
@@ -214,33 +235,41 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.only(top: 12),
                           child: Text(
                             auth.error!,
-                            style: const TextStyle(color: AppColors.danger, fontSize: 13),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.danger,
+                              fontSize: 13,
+                            ),
                           ),
                         );
                       }
+
                       return const SizedBox.shrink();
                     },
                   ),
 
-                  // Forgot password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordScreen(),
+                          ),
                         );
                       },
                       child: const Text(
                         'Lupa kata sandi?',
-                        style: TextStyle(color: AppColors.primary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
 
-                  // Login button
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       return SizedBox(
@@ -264,7 +293,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 )
                               : const Text(
                                   'Masuk',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                         ),
                       );
@@ -272,7 +304,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Register link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -284,7 +315,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
                           );
                         },
                         child: const Text(

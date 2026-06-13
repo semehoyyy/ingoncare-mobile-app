@@ -16,18 +16,46 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const PetsScreen(),
-    const ChatbotScreen(),
-    const PengingatScreen(),
-    const ProfileScreen(),
-  ];
+  int _homeRefreshKey = 0;
+  int _profileRefreshKey = 0;
+
+  Widget _getCurrentScreen() {
+    switch (_currentIndex) {
+      case 0:
+        return HomeScreen(key: ValueKey('home_$_homeRefreshKey'));
+      case 1:
+        return const PetsScreen();
+      case 2:
+        return const ChatbotScreen();
+      case 3:
+        return const PengingatScreen();
+      case 4:
+        return ProfileScreen(key: ValueKey('profile_$_profileRefreshKey'));
+      default:
+        return HomeScreen(key: ValueKey('home_$_homeRefreshKey'));
+    }
+  }
+
+  void _onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+
+      // Saat balik ke Home, HomeScreen dibuat ulang supaya foto profil terbaru kebaca
+      if (index == 0) {
+        _homeRefreshKey++;
+      }
+
+      // Saat buka Profil lagi, Profil juga refresh
+      if (index == 4) {
+        _profileRefreshKey++;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: _getCurrentScreen(),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.white,
@@ -44,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: _onTabTapped,
           items: [
             const BottomNavigationBarItem(
               icon: Icon(Icons.dashboard_outlined),
@@ -72,7 +100,11 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 22),
+                child: const Icon(
+                  Icons.chat_bubble_outline,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
               label: 'AI Chat',
             ),

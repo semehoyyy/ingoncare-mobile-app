@@ -179,9 +179,6 @@ class _PengingatScreenState extends State<PengingatScreen> {
       backgroundColor: AppColors.primaryBg,
       appBar: AppBar(
         title: const Text('Pengingat'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add, color: AppColors.primary), onPressed: _showCreateDialog),
-        ],
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
