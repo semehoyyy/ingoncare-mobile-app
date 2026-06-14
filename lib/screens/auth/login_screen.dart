@@ -6,6 +6,7 @@ import '../../utils/theme.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../home/main_screen.dart';
+import 'otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,17 +29,24 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    final success = await authProvider.login(
+    final result = await authProvider.login(
       _loginController.text.trim(),
       _passwordController.text,
     );
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (result == 'otp_required') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const OtpScreen()),
+      );
+    } else if (result == 'success') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainScreen()),

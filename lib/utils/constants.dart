@@ -1,3 +1,8 @@
+// class ApiConstants {
+//   static const String baseUrl = 'http://127.0.0.1:8000/api';
+//   static const String storageUrl = 'http://127.0.0.1:8000/storage';
+// }
+
 class ApiConstants {
   // Ganti dengan IP address komputer Anda saat development
   // Untuk emulator Android: 10.0.2.2

@@ -45,12 +45,22 @@ class ApiService {
     String password,
   ) async {
     final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/login-direct'),
+      Uri.parse('${ApiConstants.baseUrl}/login'),
       headers: await _headers(withAuth: false),
       body: jsonEncode({
         'login': login,
         'password': password,
       }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> resendOtp(int userId) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/resend-otp'),
+      headers: await _headers(withAuth: false),
+      body: jsonEncode({'user_id': userId}),
     );
 
     return jsonDecode(response.body);
@@ -84,12 +94,34 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // Langkah 1: Kirim email reset password
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     final response = await http.post(
       Uri.parse('${ApiConstants.baseUrl}/forgot-password'),
       headers: await _headers(withAuth: false),
       body: jsonEncode({
         'email': email,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  // Langkah 2: Reset password pakai token dari email
+  static Future<Map<String, dynamic>> resetPassword({
+    required String token,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/reset-password'),
+      headers: await _headers(withAuth: false),
+      body: jsonEncode({
+        'token': token,
+        'email': email,
+        'password': password,
+        'password_confirmation': passwordConfirmation,
       }),
     );
 
@@ -447,7 +479,8 @@ class ApiService {
     final data = jsonDecode(response.body);
 
     if (response.statusCode != 200) {
-      throw Exception(data['message'] ?? 'Chatbot error: ${response.statusCode}');
+      throw Exception(
+          data['message'] ?? 'Chatbot error: ${response.statusCode}');
     }
 
     return data;
@@ -503,24 +536,6 @@ class ApiService {
   }
 
   // ============ SEARCH ============
-
-  static Future<Map<String, dynamic>> resetPasswordDirect(
-    String email,
-    String password,
-    String passwordConfirmation,
-  ) async {
-    final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/reset-password-direct'),
-      headers: await _headers(withAuth: false),
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        'password_confirmation': passwordConfirmation,
-      }),
-    );
-
-    return jsonDecode(response.body);
-  }
 
   static Future<Map<String, dynamic>> search(String query) async {
     final response = await http.get(
