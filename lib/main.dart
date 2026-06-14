@@ -1,18 +1,77 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:app_links/app_links.dart';
 
 import 'utils/theme.dart';
 import 'services/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
 import 'screens/home/main_screen.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const IngonCareApp());
 }
 
-class IngonCareApp extends StatelessWidget {
+class IngonCareApp extends StatefulWidget {
   const IngonCareApp({super.key});
+
+  @override
+  State<IngonCareApp> createState() => _IngonCareAppState();
+}
+
+class _IngonCareAppState extends State<IngonCareApp> {
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenDeepLinks();
+  }
+
+  void _listenDeepLinks() {
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (Uri uri) {
+        _handleDeepLink(uri);
+      },
+      onError: (error) {
+        debugPrint('Deep link error: $error');
+      },
+    );
+  }
+
+  void _handleDeepLink(Uri uri) {
+    if (uri.scheme == 'ingoncare' && uri.host == 'reset-password') {
+      final email = uri.queryParameters['email'];
+      final token = uri.queryParameters['token'];
+
+      if (email != null &&
+          email.isNotEmpty &&
+          token != null &&
+          token.isNotEmpty) {
+        navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => ResetPasswordScreen(
+              email: email,
+              token: token,
+            ),
+          ),
+          (route) => false,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +80,7 @@ class IngonCareApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'IngonCare',
         theme: AppTheme.theme,
         debugShowCheckedModeBanner: false,
@@ -42,6 +102,8 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
+  final AppLinks _appLinks = AppLinks();
+
   @override
   void initState() {
     super.initState();
@@ -56,7 +118,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
-    _checkAuth();
+    _checkInitialLinkOrAuth();
   }
 
   @override
@@ -65,9 +127,44 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  Future<void> _checkAuth() async {
+  Future<void> _checkInitialLinkOrAuth() async {
     await Future.delayed(const Duration(seconds: 2));
 
+    if (!mounted) return;
+
+    try {
+      final Uri? initialUri = await _appLinks.getInitialLink();
+
+      if (initialUri != null &&
+          initialUri.scheme == 'ingoncare' &&
+          initialUri.host == 'reset-password') {
+        final email = initialUri.queryParameters['email'];
+        final token = initialUri.queryParameters['token'];
+
+        if (email != null &&
+            email.isNotEmpty &&
+            token != null &&
+            token.isNotEmpty) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ResetPasswordScreen(
+                email: email,
+                token: token,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('Initial deep link error: $e');
+    }
+
+    await _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
     if (!mounted) return;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);

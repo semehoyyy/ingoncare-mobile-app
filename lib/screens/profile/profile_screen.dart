@@ -23,48 +23,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   File? _selectedProfileImage;
 
-  static const String _profileImageKey = 'profile_image_path';
-
+  static const String _legacyProfileImageKey = 'profile_image_path';
   static const String _notifPengingatKey = 'notif_pengingat_enabled';
   static const String _notifForumKey = 'notif_forum_enabled';
 
   @override
   void initState() {
     super.initState();
-    _loadSavedProfileImage();
     _loadProfile();
   }
 
-  Future<void> _loadSavedProfileImage() async {
+  String _profileImageKeyForUser(dynamic user) {
+    final id = user?['id']?.toString();
+    final email = user?['email']?.toString();
+
+    if (id != null && id.isNotEmpty) {
+      return 'profile_image_path_user_$id';
+    }
+
+    if (email != null && email.isNotEmpty) {
+      return 'profile_image_path_email_$email';
+    }
+
+    return 'profile_image_path_unknown';
+  }
+
+  Future<void> _loadSavedProfileImage(dynamic user) async {
     final prefs = await SharedPreferences.getInstance();
-    final savedPath = prefs.getString(_profileImageKey);
+    final key = _profileImageKeyForUser(user);
+    final savedPath = prefs.getString(key);
 
-    if (savedPath != null && savedPath.isNotEmpty) {
-      final file = File(savedPath);
+    if (savedPath == null || savedPath.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _selectedProfileImage = null;
+      });
+      return;
+    }
 
-      if (await file.exists()) {
-        if (!mounted) return;
-        setState(() {
-          _selectedProfileImage = file;
-        });
-      }
+    final file = File(savedPath);
+
+    if (await file.exists()) {
+      if (!mounted) return;
+      setState(() {
+        _selectedProfileImage = file;
+      });
+    } else {
+      await prefs.remove(key);
+
+      if (!mounted) return;
+      setState(() {
+        _selectedProfileImage = null;
+      });
     }
   }
 
   Future<void> _loadProfile() async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _selectedProfileImage = null;
+    });
 
     try {
       final response = await ApiService.getProfile();
+      final user = response['user'];
 
       if (!mounted) return;
+
       setState(() {
         _profile = response;
         _isLoading = false;
       });
+
+      await _loadSavedProfileImage(user);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+
+      setState(() {
+        _isLoading = false;
+        _selectedProfileImage = null;
+      });
     }
   }
 
@@ -80,53 +120,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (pickedFile == null) return;
 
       final selectedFile = File(pickedFile.path);
+      final user = _profile?['user'];
+
+      if (user == null) return;
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_profileImageKey, pickedFile.path);
+      await prefs.setString(_profileImageKeyForUser(user), pickedFile.path);
+      await prefs.remove(_legacyProfileImageKey);
 
       setState(() {
         _selectedProfileImage = selectedFile;
       });
 
-      final user = _profile?['user'];
-
       final data = <String, dynamic>{
-        'name': user?['name'] ?? '',
-        'email': user?['email'] ?? '',
-        'phone': user?['phone'] ?? '',
+        'name': user['name'] ?? '',
+        'email': user['email'] ?? '',
+        'phone': user['phone'] ?? '',
       };
 
-      if (user?['dob'] != null) data['dob'] = user['dob'];
-      if (user?['address'] != null) data['address'] = user['address'];
+      if (user['dob'] != null) data['dob'] = user['dob'];
+      if (user['address'] != null) data['address'] = user['address'];
 
       final response = await ApiService.updateProfile(
         data,
         photoPath: pickedFile.path,
       );
 
-      if (mounted) {
-        if (response['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Foto profil berhasil diperbarui')),
-          );
+      if (!mounted) return;
 
-          await _loadProfile();
-          await _loadSavedProfileImage();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response['message'] ?? 'Gagal upload foto profil'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+      if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memilih foto: $e')),
+          const SnackBar(content: Text('Foto profil berhasil diperbarui')),
+        );
+
+        await _loadProfile();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Gagal upload foto profil'),
+          ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memilih foto: $e')),
+      );
     }
+  }
+
+  Future<void> _clearProfileLocalCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final user = _profile?['user'];
+
+    await prefs.remove(_legacyProfileImageKey);
+
+    if (user != null) {
+      await prefs.remove(_profileImageKeyForUser(user));
+    }
+
+    setState(() {
+      _selectedProfileImage = null;
+      _profile = null;
+    });
   }
 
   Future<void> _logout() async {
@@ -152,6 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirm == true && mounted) {
+      await _clearProfileLocalCache();
       await Provider.of<AuthProvider>(context, listen: false).logout();
 
       if (mounted) {

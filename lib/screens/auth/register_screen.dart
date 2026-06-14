@@ -24,6 +24,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
+  bool get _hasMinLength => _passwordController.text.length >= 8;
+
+  bool get _hasUppercase =>
+      RegExp(r'[A-Z]').hasMatch(_passwordController.text);
+
+  bool get _hasNumber =>
+      RegExp(r'[0-9]').hasMatch(_passwordController.text);
+
+  bool get _hasSymbol =>
+      RegExp(r'[@$!%*#?&]').hasMatch(_passwordController.text);
+
+  @override
+  void initState() {
+    super.initState();
+
+    _passwordController.addListener(() {
+      setState(() {});
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -124,6 +144,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPasswordRequirement(String text, bool isValid) {
+    final bool hasTyped = _passwordController.text.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.cancel,
+            size: 16,
+            color: isValid
+                ? Colors.green
+                : hasTyped
+                    ? Colors.red
+                    : AppColors.textGray,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: isValid
+                    ? Colors.green
+                    : hasTyped
+                        ? Colors.red
+                        : AppColors.textGray,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordChecklist() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPasswordRequirement(
+            'Minimal 8 karakter',
+            _hasMinLength,
+          ),
+          _buildPasswordRequirement(
+            'Mengandung huruf besar',
+            _hasUppercase,
+          ),
+          _buildPasswordRequirement(
+            'Mengandung angka',
+            _hasNumber,
+          ),
+          _buildPasswordRequirement(
+            'Mengandung simbol (@\$!%*#?&)',
+            _hasSymbol,
+          ),
+        ],
+      ),
     );
   }
 
@@ -311,9 +394,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         letterSpacing: 1,
                       ),
                       hintText: '••••••••',
-                      helperText:
-                          'Min 8 karakter, huruf besar, angka, simbol (@\$!%*#?&)',
-                      helperMaxLines: 2,
                       prefixIcon: const Icon(
                         Icons.lock_outline,
                         color: AppColors.primaryLight,
@@ -351,6 +431,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return null;
                     },
                   ),
+
+                  _buildPasswordChecklist(),
+
                   const SizedBox(height: 16),
 
                   TextFormField(
