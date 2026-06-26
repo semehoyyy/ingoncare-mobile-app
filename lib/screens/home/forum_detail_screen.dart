@@ -1,8 +1,6 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../utils/theme.dart';
 import '../../services/api_service.dart';
 import '../social/user_profile_screen.dart';
@@ -10,10 +8,7 @@ import '../social/user_profile_screen.dart';
 class ForumDetailScreen extends StatefulWidget {
   final int postId;
 
-  const ForumDetailScreen({
-    super.key,
-    required this.postId,
-  });
+  const ForumDetailScreen({super.key, required this.postId});
 
   @override
   State<ForumDetailScreen> createState() => _ForumDetailScreenState();
@@ -21,17 +16,17 @@ class ForumDetailScreen extends StatefulWidget {
 
 class _ForumDetailScreenState extends State<ForumDetailScreen> {
   final _replyController = TextEditingController();
+  final _focusNode = FocusNode();
 
   Map<String, dynamic>? _post;
   bool _isLoading = true;
   bool _isSending = false;
 
+  int? _selectedReplyToId;
+  String? _replyingToName;
+
   File? _localProfileImage;
   int? _currentUserId;
-  String? _currentUserEmail;
-  String? _currentUserName;
-
-  static const String _profileImageKey = 'profile_image_path';
 
   @override
   void initState() {
@@ -42,6 +37,7 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
   @override
   void dispose() {
     _replyController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -53,16 +49,12 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
 
   Future<void> _loadSavedProfileImage() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedPath = prefs.getString(_profileImageKey);
-
+    final savedPath = prefs.getString('profile_image_path');
     if (savedPath != null && savedPath.isNotEmpty) {
       final file = File(savedPath);
-
       if (await file.exists()) {
         if (!mounted) return;
-        setState(() {
-          _localProfileImage = file;
-        });
+        setState(() => _localProfileImage = file);
       }
     }
   }
@@ -71,122 +63,56 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
     try {
       final response = await ApiService.getProfile();
       final user = response['user'];
-
-      if (user != null) {
-        if (!mounted) return;
-
+      if (user != null && mounted) {
         setState(() {
-          _currentUserId = user['id'] != null
-              ? int.tryParse(user['id'].toString())
-              : null;
-          _currentUserEmail = user['email']?.toString();
-          _currentUserName = user['name']?.toString();
+          _currentUserId = int.tryParse(user['id'].toString());
         });
       }
     } catch (_) {}
   }
 
-  bool _isCurrentUser(dynamic user) {
-    final int? userId = user?['id'] != null
-        ? int.tryParse(user['id'].toString())
-        : null;
-
-    final String? userEmail = user?['email']?.toString();
-    final String? userName = user?['name']?.toString();
-
-    if (_currentUserId != null && userId != null && _currentUserId == userId) {
-      return true;
-    }
-
-    if (_currentUserEmail != null &&
-        userEmail != null &&
-        _currentUserEmail == userEmail) {
-      return true;
-    }
-
-    if (_currentUserName != null &&
-        userName != null &&
-        _currentUserName == userName) {
-      return true;
-    }
-
-    return false;
-  }
-
-  Widget _buildAvatar(dynamic user, double radius, double iconSize) {
-    final profilePhoto = user?['profile_photo'];
-
-    if (_isCurrentUser(user) && _localProfileImage != null) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: AppColors.primaryLighter,
-        backgroundImage: FileImage(_localProfileImage!),
-      );
-    }
-
-    if (profilePhoto != null && profilePhoto.toString().isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: AppColors.primaryLighter,
-        backgroundImage: NetworkImage(profilePhoto.toString()),
-      );
-    }
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: AppColors.primaryLighter,
-      child: Icon(
-        Icons.person,
-        color: AppColors.primary,
-        size: iconSize,
-      ),
-    );
-  }
-
   Future<void> _loadPost() async {
-    setState(() => _isLoading = true);
-
-    await _loadSavedProfileImage();
-    await _loadCurrentUser();
-
+    if (_post == null) setState(() => _isLoading = true);
     try {
       final response = await ApiService.getForumPost(widget.postId);
-
-      if (response['success'] == true) {
+      if (mounted && response['success'] == true) {
         setState(() {
           _post = response['post'];
           _isLoading = false;
         });
-      } else {
-        setState(() => _isLoading = false);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _initiateReply(int replyId, String userName) {
+    setState(() {
+      _selectedReplyToId = replyId;
+      _replyingToName = userName;
+    });
+    FocusScope.of(context).requestFocus(_focusNode);
   }
 
   Future<void> _sendReply() async {
     if (_replyController.text.trim().isEmpty) return;
-
     setState(() => _isSending = true);
 
     try {
       final response = await ApiService.createForumPost({
         'content': _replyController.text.trim(),
-        'parent_id': widget.postId.toString(),
+        'parent_id': _post!['id'],
+        'reply_to_id': _selectedReplyToId,
       });
 
-      if (response['success'] == true) {
+      if (mounted && response['success'] == true) {
         _replyController.clear();
+        FocusScope.of(context).unfocus();
+        setState(() {
+          _selectedReplyToId = null;
+          _replyingToName = null;
+        });
         await _loadPost();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response['message'] ?? 'Gagal mengirim balasan'),
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -194,45 +120,103 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
           const SnackBar(content: Text('Gagal mengirim balasan')),
         );
       }
-    }
-
-    if (mounted) {
-      setState(() => _isSending = false);
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
+  // 🔹 FIX 1: Mengunci State Love di UI agar Tidak Tergantung/Ter-reset data Null dari API
   Future<void> _likePost(int id) async {
-    try {
-      final response = await ApiService.likeForumPost(id);
+    if (_post == null) return;
 
-      if (response['success'] == true) {
-        _loadPost();
+    // Fungsi lokal untuk mengubah data secara instan
+    void toggleLike(Map<String, dynamic> item) {
+      final bool currentlyLiked = item['is_liked'] == true || item['is_liked'] == 1;
+      item['is_liked'] = !currentlyLiked;
+      item['likes_count'] = (item['likes_count'] ?? 0) + (currentlyLiked ? -1 : 1);
+    }
+
+    setState(() {
+      if (_post!['id'] == id) {
+        toggleLike(_post!);
+      } else if (_post!['replies'] != null) {
+        for (var reply in _post!['replies']) {
+          if (reply['id'] == id) {
+            toggleLike(reply);
+            break;
+          }
+          // Antisipasi jika data bertingkat
+          if (reply['replies'] != null) {
+            for (var sub in reply['replies']) {
+              if (sub['id'] == id) { toggleLike(sub); break; }
+            }
+          }
+        }
       }
-    } catch (_) {}
+    });
+
+    try {
+      // Tembak API di background
+      await ApiService.likeForumPost(id);
+      // Opsional: hapus `await _loadPost()` di sini jika API kamu mengembalikan data lama/null 
+      // yang malah merusak UI yang sudah benar.
+    } catch (_) {
+      // Rollback jika server error
+      await _loadPost();
+    }
   }
 
-  void _openUserProfile(dynamic user) {
-    if (user?['id'] != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => UserProfileScreen(userId: user['id']),
-        ),
-      );
+  // 🔹 FIX 2: Mesin Penyusun Komentar Bertingkat (Mengatasi Data Backend yang Flat/Mendatar)
+  List<Widget> _buildStructuredComments() {
+    if (_post!['replies'] == null || (_post!['replies'] as List).isEmpty) {
+      return [
+        const Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(child: Text('Belum ada komentar. Tulis sesuatu...', style: TextStyle(color: AppColors.textGray))),
+        )
+      ];
     }
+
+    List<dynamic> allReplies = List.from(_post!['replies']);
+    List<Widget> commentTreeWidgets = [];
+
+    // 1. Ambil komentar utama (yang tidak membalas komentar lain / reply_to_id null)
+    var rootComments = allReplies.where((r) => r['reply_to_id'] == null).toList();
+
+    // Jika backend ternyata bertingkat (tidak flat), langsung petakan seperti biasa
+    if (rootComments.isEmpty && allReplies.isNotEmpty) {
+  return allReplies.expand((reply) => _renderCommentNode(reply, 0, allReplies)).toList();
+}
+    for (var root in rootComments) {
+      commentTreeWidgets.addAll(_renderCommentNode(root, 0, allReplies));
+    }
+
+    return commentTreeWidgets;
+  }
+
+  List<Widget> _renderCommentNode(dynamic reply, double depth, List<dynamic> allReplies) {
+    List<Widget> nodes = [];
+    
+    // Tambahkan komponen komentar saat ini
+    nodes.add(_buildCommentTile(reply, depth));
+
+    // Cari anak balasan dari komentar ini berdasarkan id di list datar (Flat Array)
+    var children = allReplies.where((r) => r['reply_to_id'] == reply['id']).toList();
+    for (var child in children) {
+      double nextDepth = depth < 3 ? depth + 1 : depth; // Batasi geser kanan maks 3 tingkat
+      nodes.addAll(_renderCommentNode(child, nextDepth, allReplies));
+    }
+
+    return nodes;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryBg,
-      appBar: AppBar(
-        title: const Text('Detail Diskusi'),
-      ),
+      appBar: AppBar(title: const Text('Detail Diskusi')),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _post == null
               ? const Center(child: Text('Postingan tidak ditemukan'))
               : Column(
@@ -247,28 +231,16 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
                             _buildOriginalPost(),
                             const SizedBox(height: 16),
                             Text(
-                              'Balasan (${(_post!['replies'] as List?)?.length ?? 0})',
-                              style: const TextStyle(
-                                fontSize: 16,
+                              'Komentar',
+                              style: TextStyle(
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDarker,
+                                color: AppColors.textGray.withOpacity(0.8),
                               ),
                             ),
                             const SizedBox(height: 12),
-                            if (_post!['replies'] != null &&
-                                (_post!['replies'] as List).isNotEmpty)
-                              ...(_post!['replies'] as List)
-                                  .map((reply) => _buildReplyCard(reply))
-                            else
-                              const Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Center(
-                                  child: Text(
-                                    'Belum ada balasan. Jadilah yang pertama!',
-                                    style: TextStyle(color: AppColors.textGray),
-                                  ),
-                                ),
-                              ),
+                            // Memanggil generator struktur pohon komentar yang baru
+                            ..._buildStructuredComments(),
                           ],
                         ),
                       ),
@@ -280,282 +252,166 @@ class _ForumDetailScreenState extends State<ForumDetailScreen> {
   }
 
   Widget _buildOriginalPost() {
-    final user = _post!['user'];
-    final isLiked = _post!['is_liked'] == true;
-    final likesCount = _post!['likes_count'] ?? 0;
-
+    final user = _post?['user'] ?? {};
+    final isLiked = _post!['is_liked'] == true || _post!['is_liked'] == 1;
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryLighter,
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _openUserProfile(user),
-                  child: _buildAvatar(user, 20, 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user?['name'] ?? 'Unknown',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.primaryDarker,
-                        ),
-                      ),
-                      Text(
-                        _post!['time_ago'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGray,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_post!['title'] != null &&
-                    _post!['title'].toString().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      _post!['title'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDarker,
-                      ),
-                    ),
-                  ),
-                Text(
-                  _post!['content'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textBody,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_post!['image'] != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  _post!['image'],
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: GestureDetector(
-              onTap: () => _likePost(_post!['id']),
-              child: Row(
-                children: [
-                  Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    size: 22,
-                    color: isLiked ? AppColors.primary : AppColors.textGray,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$likesCount suka',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isLiked ? AppColors.primary : AppColors.textGray,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReplyCard(dynamic reply) {
-    final user = reply['user'];
-    final isLiked = reply['is_liked'] == true;
-    final likesCount = reply['likes_count'] ?? 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryLighter),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              GestureDetector(
-                onTap: () => _openUserProfile(user),
-                child: _buildAvatar(user, 16, 16),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user?['name'] ?? 'Unknown',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.primaryDarker,
-                      ),
-                    ),
-                    Text(
-                      reply['time_ago'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textGray,
-                      ),
-                    ),
-                  ],
-                ),
+              _buildAvatar(user, 20),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user['name'] ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(_post!['time_ago'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            reply['content'] ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textBody,
-              height: 1.4,
-            ),
-          ),
-          if (reply['image'] != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  reply['image'],
-                  height: 120,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              ),
-            ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          Text(_post!['content'] ?? '', style: const TextStyle(fontSize: 15, height: 1.4)),
+          const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => _likePost(reply['id']),
+            onTap: () => _likePost(_post!['id']),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  isLiked ? Icons.favorite : Icons.favorite_border,
-                  size: 16,
-                  color: isLiked ? AppColors.primary : AppColors.textGray,
-                ),
+                Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.red : AppColors.textGray, size: 20),
                 const SizedBox(width: 4),
-                Text(
-                  '$likesCount',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isLiked ? AppColors.primary : AppColors.textGray,
+                Text('${_post!['likes_count'] ?? 0} suka', style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentTile(dynamic reply, double depth) {
+    final user = reply['user'] ?? {};
+    // Pengecekan boolean fleksibel (mengantisipasi jika API mengirim data integer 1/0 atau boolean)
+    final isLiked = reply['is_liked'] == true || reply['is_liked'] == 1;
+    final String? mention = reply['mention'];
+
+    return Container(
+      // Margin kiri dinamis dikalikan 24 pixel per kedalaman balasan
+      margin: EdgeInsets.only(left: depth * 24, bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAvatar(user, 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 13.5, color: Colors.black, height: 1.3),
+                    children: [
+                      TextSpan(text: '${user['name'] ?? 'User'} ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      if (mention != null && mention.isNotEmpty)
+                        TextSpan(text: '@$mention ', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
+                      TextSpan(text: reply['content'] ?? ''),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(reply['time_ago'] ?? 'Now', style: const TextStyle(fontSize: 11, color: AppColors.textGray)),
+                    if ((reply['likes_count'] ?? 0) > 0) ...[
+                      const SizedBox(width: 12),
+                      Text('${reply['likes_count']} suka', style: const TextStyle(fontSize: 11, color: AppColors.textGray, fontWeight: FontWeight.bold)),
+                    ],
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => _initiateReply(reply['id'], user['name'] ?? 'User'),
+                      child: const Text('Balas', style: TextStyle(fontSize: 11, color: AppColors.textGray, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                )
               ],
             ),
           ),
+          GestureDetector(
+            onTap: () => _likePost(reply['id']),
+            child: Padding(
+              padding: const EdgeInsets.all(6.0),
+              child: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border, 
+                size: 15, 
+                color: isLiked ? Colors.red : AppColors.textGray,
+              ),
+            ),
+          )
         ],
       ),
     );
   }
 
   Widget _buildReplyInput() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        12,
-        16,
-        MediaQuery.of(context).viewInsets.bottom + 12,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(
-            color: AppColors.primaryLighter,
-            width: 1.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _replyController,
-              decoration: InputDecoration(
-                hintText: 'Tulis balasan...',
-                hintStyle: const TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 14,
-                ),
-                filled: true,
-                fillColor: AppColors.primarySurface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyingToName != null)
+          Container(
+            color: Colors.grey[100],
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
+              children: [
+                Expanded(child: Text('Membalas @$_replyingToName', style: const TextStyle(fontSize: 12, color: AppColors.textGray))),
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedReplyToId = null;
+                    _replyingToName = null;
+                  }),
+                  child: const Icon(Icons.close, size: 16, color: AppColors.textGray),
+                )
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _isSending ? null : _sendReply,
-            icon: _isSending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : const Icon(
-                    Icons.send,
-                    color: AppColors.primary,
+        Container(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).viewInsets.bottom + 12),
+          color: AppColors.white,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _replyController,
+                  focusNode: _focusNode,
+                  decoration: InputDecoration(
+                    hintText: _replyingToName != null ? 'Balas @$_replyingToName...' : 'Tambahkan komentar...',
+                    border: InputBorder.none,
+                    isDense: true,
                   ),
+                ),
+              ),
+              IconButton(
+                onPressed: _isSending ? null : _sendReply,
+                icon: _isSending 
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.send, color: AppColors.primary),
+              )
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildAvatar(dynamic user, double radius) {
+    if (user?['profile_photo'] != null) {
+      return CircleAvatar(radius: radius, backgroundImage: NetworkImage(user['profile_photo']));
+    }
+    return CircleAvatar(radius: radius, backgroundColor: Colors.grey[300], child: Icon(Icons.person, size: radius * 1.2, color: Colors.white));
   }
 }
