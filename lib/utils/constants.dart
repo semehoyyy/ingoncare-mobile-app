@@ -5,12 +5,7 @@
 
 //ini aslinya untuk di hp langsung
 class ApiConstants {
-  static const String baseUrl = 'http://172.20.10.3:8000/api';
-  static const String storageUrl = 'http://172.20.10.3:8000/storage';
+  static const String baseUrl = 'http://192.168.100.59:8000/api';
+  static const String storageUrl = 'http://192.168.100.59:8000/storage';
 }
 
-//ini buat di android emulator
-// class ApiConstants {
-//   static const String baseUrl = 'http://10.0.2.2:8000/api';
-//   static const String storageUrl = 'http://10.0.2.2:8000/storage';
-// }
