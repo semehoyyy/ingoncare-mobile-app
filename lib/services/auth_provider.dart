@@ -44,7 +44,6 @@ class AuthProvider extends ChangeNotifier {
       final response = await ApiService.login(login, password);
 
       if (response['user_id'] != null) {
-        // OTP terkirim, butuh verifikasi
         _pendingUserId = response['user_id'];
         _isLoading = false;
         notifyListeners();
@@ -57,6 +56,12 @@ class AuthProvider extends ChangeNotifier {
         _isAuthenticated = true;
         _isLoading = false;
         notifyListeners();
+
+        // ✅ Kirim FCM token ke backend setelah login sukses
+        try {
+          await ApiService.initNotification();
+        } catch (_) {}
+
         return 'success';
       }
 
@@ -93,6 +98,12 @@ class AuthProvider extends ChangeNotifier {
         _pendingUserId = null;
         _isLoading = false;
         notifyListeners();
+
+        // ✅ Kirim FCM token ke backend setelah verifikasi OTP sukses
+        try {
+          await ApiService.initNotification();
+        } catch (_) {}
+
         return true;
       } else {
         _error = response['message'] ?? 'OTP salah';

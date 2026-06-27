@@ -1,3 +1,5 @@
+import 'dart:async'; // Tambahkan ini
+import 'package:firebase_messaging/firebase_messaging.dart'; // Tambahkan ini
 import 'package:flutter/material.dart';
 import '../../utils/theme.dart';
 import '../../services/api_service.dart';
@@ -14,11 +16,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
   List<dynamic> _notifications = [];
   int _unreadCount = 0;
   bool _isLoading = true;
+  StreamSubscription<RemoteMessage>? _fcmSubscription; // Tambahkan ini
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
+
+    // AUTO REFRESH LIST: ketika ada notifikasi masuk saat halaman ini terbuka
+    _fcmSubscription = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      _loadNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _fcmSubscription?.cancel(); // Hapus listener agar hemat RAM
+    super.dispose();
   }
 
   Future<void> _loadNotifications() async {
@@ -47,12 +61,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _onNotificationTap(dynamic notification) async {
-    // Mark as read
     if (notification['is_read'] == false) {
       await ApiService.markNotificationRead(notification['id']);
     }
 
-    // Navigate based on link
     final link = notification['link'] as String?;
     if (link != null && link.startsWith('/forum/') && mounted) {
       final postId = int.tryParse(link.replaceAll('/forum/', ''));
@@ -62,7 +74,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ));
       }
     }
-
     _loadNotifications();
   }
 
@@ -73,31 +84,21 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   IconData _getNotificationIcon(String? type) {
     switch (type) {
-      case 'like':
-        return Icons.favorite;
-      case 'comment':
-        return Icons.chat_bubble;
-      case 'follow':
-        return Icons.person_add;
-      case 'pengingat':
-        return Icons.notifications_active;
-      default:
-        return Icons.notifications;
+      case 'like': return Icons.favorite;
+      case 'comment': return Icons.chat_bubble;
+      case 'follow': return Icons.person_add;
+      case 'pengingat': return Icons.notifications_active;
+      default: return Icons.notifications;
     }
   }
 
   Color _getNotificationColor(String? type) {
     switch (type) {
-      case 'like':
-        return Colors.red;
-      case 'comment':
-        return AppColors.primary;
-      case 'follow':
-        return Colors.blue;
-      case 'pengingat':
-        return Colors.orange;
-      default:
-        return AppColors.textGray;
+      case 'like': return Colors.red;
+      case 'comment': return AppColors.primary;
+      case 'follow': return Colors.blue;
+      case 'pengingat': return Colors.orange;
+      default: return AppColors.textGray;
     }
   }
 
@@ -169,7 +170,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _getNotificationColor(type).withValues(alpha: 0.1),
+                  color: _getNotificationColor(type).withAlpha(25),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(

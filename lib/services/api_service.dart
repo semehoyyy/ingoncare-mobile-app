@@ -1,7 +1,20 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Tambahan FCM
+import 'package:flutter/material.dart'; // Tambahan Material
+import 'package:flutter/foundation.dart'; // Tambahan kDebugMode
 import '../utils/constants.dart';
+import '../main.dart'; // Tambahan untuk mengambil navigatorKey global
+import '../screens/home/forum_detail_screen.dart'; // Tambahan untuk pindah ke Detail Forum
+
+// Handler top-level wajib untuk menangkap notifikasi saat aplikasi MATI/BACKGROUND
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (kDebugMode) {
+    print("Notifikasi masuk di background: ${message.messageId}");
+  }
+}
 
 class ApiService {
   static const _storage = FlutterSecureStorage();
@@ -597,6 +610,73 @@ class ApiService {
     final response = await http.get(
       Uri.parse('${ApiConstants.baseUrl}/users/$userId/following'),
       headers: await _headers(),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  // ============ FCM PUSH NOTIFICATIONS (TAMBAHAN) ============
+
+  static Future<void> initNotification() async {
+    final fcm = FirebaseMessaging.instance;
+
+    // 1. Meminta izin pop-up notifikasi sistem HP
+    await fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // 2. Mengambil Token FCM unik perangkat ini
+    String? token = await fcm.getToken();
+    if (kDebugMode) {
+      print('================ FCM TOKEN INGONCARE ================');
+      print(token);
+      print('======================================================');
+    }
+
+    // 3. Jika token didapat, kirim otomatis ke database Laravel
+    if (token != null) {
+      await updateFcmToken(token);
+    }
+
+    // 4. Daftarkan background messaging handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // 5. Handle ketika Pop-up notifikasi DIKLIK saat status Background
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _handleNotificationClick(message);
+    });
+
+    // 6. Handle ketika Pop-up notifikasi DIKLIK saat status Terminated (Aplikasi mati total)
+    RemoteMessage? initialMessage = await fcm.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationClick(initialMessage);
+    }
+  }
+
+  // Fungsi pengatur rute halaman tujuan ketika pop-up diklik
+  static void _handleNotificationClick(RemoteMessage message) {
+    final link = message.data['link'] as String?;
+    if (link != null && link.startsWith('/forum/')) {
+      final postId = int.tryParse(link.replaceAll('/forum/', ''));
+      if (postId != null) {
+        // Pindah ke detail forum secara global menggunakan navigatorKey dari main.dart
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => ForumDetailScreen(postId: postId)),
+        );
+      }
+    }
+  }
+
+  // Fungsi HTTP POST untuk mendaftarkan / memperbarui Token FCM user ke Laravel
+  static Future<Map<String, dynamic>> updateFcmToken(String token) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/update-fcm-token'), // Sesuaikan endpoint route di api.php Laravel kamu
+      headers: await _headers(withAuth: true), // Otomatis menyematkan Bearer Token jika user sudah ter-autentikasi
+      body: jsonEncode({
+        'fcm_token': token,
+      }),
     );
 
     return jsonDecode(response.body);

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "364441204411",
+    "project_id": "ingoncare-48b31",
+    "storage_bucket": "ingoncare-48b31.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364441204411:android:e95dad797a5cc6aec8db9e",
+        "android_client_info": {
+          "package_name": "com.ingoncare.ingon_care"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOTEMDUQeAtgrN7jLHQWns7NUxmI7qdUI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,17 +3,29 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'utils/theme.dart';
 import 'services/auth_provider.dart';
+import 'services/api_service.dart'; // ✅ Ganti notification_service dengan ini
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/reset_password_screen.dart';
 import 'screens/home/main_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    // ✅ initNotification dipanggil di sini hanya untuk setup handler background/terminated
+    // Token FCM akan dikirim ke backend setelah user login
+    await ApiService.initNotification();
+  } catch (e) {
+    debugPrint('Firebase Init Error: $e');
+  }
+
   runApp(const IngonCareApp());
 }
 
@@ -173,6 +185,13 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (authProvider.isAuthenticated) {
+      // ✅ User sudah login (token ada) — kirim FCM token ke backend sekarang
+      try {
+        await ApiService.initNotification();
+      } catch (e) {
+        debugPrint('FCM re-init error: $e');
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainScreen()),
